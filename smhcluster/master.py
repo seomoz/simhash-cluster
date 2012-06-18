@@ -45,8 +45,25 @@ class Master(object):
         count = min(self.max_node_shards, self.shards / (len(self.slaves) + 1))
         assign = self.unassigned()[0:count]
         if (len(assign) < count):
-            # This is where we'd figure which nodes to steal shards from
-            pass
+            # We need to actually steal shards from some of the existing slaves
+            # so we should figure out where to take them from
+            slaves = defaultdict(list)
+            for s, e, i in self.rangemap:
+                if i != None:
+                    slaves[i].append((s, e))
+            
+            # Now make a list of tuples based on this
+            slaves = [(len(v), s, v) for s, v in slaves.items()]
+            slaves.sort()
+            slaves.reverse()
+            for l, slave, shards in slaves:
+                # Take up to l-count from this guy
+                ct = min(l - count, count - len(assign))
+                nw = shards[0:ct]
+                assign.extend(nw)
+                for start, end in nw:
+                    slave.unload(start, end)
+                    logger.info('Reassigning [%i, %i) from %s to %s' % (start, end, repr(slave), hostname))
         
         import zerorpc
         logger.info('Assigning %i to %s' % (count, hostname))
@@ -55,6 +72,44 @@ class Master(object):
         for start, end in assign:
             slave.load(start, end)
             self.rangemap.insert(start, end, slave)
+    
+    def deregister(self, hostname):
+        # When deregistering a node, we should redistribute all the keys
+        # associated with this particular host
+        if isinstance(hostname, basestring):
+            slave = self.slaves.pop(hostname)
+        else:
+            slave = hostname
+            for k, v in self.slaves.items():
+                if slave == v:
+                    o = self.slaves.pop(k)
+        
+        assign = [(s, e) for s, e, i in self.rangemap if i == slave]
+        count  = min(self.max_node_shards, self.shards / (len(self.slaves)) + 1)
+        # Alright, assign these ranges to the remaining slaves. Keep filling up
+        # slaves until they're full
+        for slave in self.slaves.values():
+            ct = len([(s, e) for s, e, i in self.rangemap if i == slave])
+            for i in range(count - ct):
+                if not assign:
+                    break
+                s, e = assign.pop(0)
+                slave.load(s, e)
+                self.rangemap.insert(s, e, slave)
+                logger.info('Reassigning [%i, %i) to %s' % (s, e, repr(slave)))
+        
+        # Unassign all the remaining shards
+        for s, e in assign:
+            self.rangemap.insert(s, e, None)
+    
+    def stats(self):
+        # Return the distribution of the shards
+        slaves = defaultdict(list)
+        for s, e, i in self.rangemap:
+            if i != None:
+                slaves[i].append((s, e))
+        
+        return dict(((repr(s), len(shards)) for s, shards in slaves.items()))
     
     def config(self, config):
         pass

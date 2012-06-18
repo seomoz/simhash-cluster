@@ -59,3 +59,8 @@ class Slave(object):
         logger.info('Registered: %s' % repr(c.register(self.hostname)))
         c.close()
     
+    def deregister(self, host):
+        import zerorpc
+        c = zerorpc.Client('tcp://%s' % host)
+        c.deregister(self.hostname)
+        c.close()

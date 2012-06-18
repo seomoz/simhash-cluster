@@ -24,4 +24,7 @@ gevent.spawn(slave.register, args.master)
 # And start serving...
 s = zerorpc.Server(slave)
 s.bind('tcp://0.0.0.0:%i' % args.port)
-s.run()
+try:
+    s.run()
+except KeyboardInterrupt:
+    slave.deregister(args.master)
