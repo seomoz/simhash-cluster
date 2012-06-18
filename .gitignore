@@ -1,0 +1,7 @@
+*.o
+**.dSYM
+driver
+build/*
+*.cpp
+*.so
+*.pyc
