@@ -1,0 +1,17 @@
+# Top-level configuration about the tables themselves. How many blocks should we
+# divide the 64-bit int into? And how many differing bits and still considered a
+# near-duplicate?
+blocks   : 6
+diff_bits: 3
+
+# How should we serve the API?
+adapters:
+  smhcluster.adapters.http.Server:
+    port: 8080
+  smhcluster.adapters.zrpc.Server:
+    port: 5678
+
+# And how should we do permanent storage?
+storage:
+  smhcluster.storage.disk.Disk:
+    path: /some/path/to/somewhere/

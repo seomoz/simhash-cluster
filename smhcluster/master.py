@@ -1,51 +1,9 @@
 #! /usr/bin/env python
 
+from . import logger
 from .util import RangeMap
 
-class Slave(object):
-    def __init__(self, hostname, conn):
-        self.hostname   = hostname
-        self.connection = conn
-        
-        self.rangemap   = RangeMap()
-    
-    # Send configuration to this node
-    def config(self, config):
-        pass
-    
-    def load(self, start, end):
-        from simhash import Corpus
-        logger.debug(
-            '%s accepting range [%i, %i)' % (self.hostname, start, end))
-        self.rangemap.insert(start, end, Corpus(6, 3))
-    
-    def unload(self, start, end):
-        self.rangemap.remove(start, end)
-    
-    def save(self, start, end):
-        pass
-    
-    def find(self, h):
-        corpus = self.rangemap.find(h)
-        if not corpus:
-            return None
-        return corpus
-    
-    def find_first(self, h):
-        logger.debug('%s find first %i' % (self.hostname, h))
-        return self.find(h).find_first(h)
-    
-    def find_all(self, h):
-        logger.debug('%s find all %i' % (self.hostname, h))
-        return self.find(h).find_all(h)
-    
-    def insert(self, q, h):
-        logger.debug('%s insert %i' % (self.hostname, h))
-        return self.find(q).insert(h)
-    
-    def remove(self, q, h):
-        logger.debug('%s remove %i' % (self.hostname, h))
-        return self.find(q).remove(h)
+from collections import defaultdict
 
 # This is the master node object. It talks to slave nodes to determine both
 # their availability and health and to answer queries.
@@ -74,14 +32,14 @@ class Master(object):
         for i in range(self.shards):
             start =  i      * (1 << 64) / self.shards
             end   = (i + 1) * (1 << 64) / self.shards
-            results.append((start, end))
+            results.append((start, end-1))
         return results
     
     def unassigned(self):
         # Get a list of tuples (start, end) of ranges that are unassigned
         return [(s, e) for s, e, i in self.rangemap if i == None]
         
-    def accept(self, slave):
+    def register(self, hostname):
         # Accept a new slave. First, determine how many shards we're going to
         # give to each node once we add this new one
         count = min(self.max_node_shards, self.shards / (len(self.slaves) + 1))
@@ -90,8 +48,10 @@ class Master(object):
             # This is where we'd figure which nodes to steal shards from
             pass
         
-        logger.info('Assigning %i to %s' % (count, slave.hostname))
-        self.slaves[slave.hostname] = slave
+        import zerorpc
+        logger.info('Assigning %i to %s' % (count, hostname))
+        slave = zerorpc.Client('tcp://%s' % hostname)
+        self.slaves[hostname] = slave
         for start, end in assign:
             slave.load(start, end)
             self.rangemap.insert(start, end, slave)
@@ -101,7 +61,10 @@ class Master(object):
     
     def listen(self):
         # Listen for nodes trying to connect
-        pass
+        import zerorpc
+        self.server = zerorpc.Server(self)
+        self.server.bind('tcp://0.0.0.0:1234')
+        self.server.run()
     
     def find(self, h):
         slave = self.rangemap.find(h)
@@ -109,13 +72,29 @@ class Master(object):
             raise Master.RangeUnassigned('%i unavailable' % h)
         return slave
     
-    def find_first(self, h):
-        return self.find(h).find_first(h)
+    def find_first(self, *hashes):
+        destinations = defaultdict(list)
+        for h in hashes:
+            destinations[self.find(h)].append(h)
+        
+        results = []
+        for k, queries in destinations.items():
+            results.extend(zip(queries, k.find_first(*queries)))
+            logger.info('Finished querying %s' % k)
+        return results
     
-    def find_all(self, h):
-        return self.find(h).find_all(h)
+    def find_all(self, *hashes):
+        destinations = defaultdict(list)
+        for h in hashes:
+            destinations[self.find(h)].append(h)
+        
+        results = []
+        for k, queries in destinations.items():
+            results.extend(zip(queries, k.find_all(*queries)))
+            logger.info('Finished querying %s' % k)
+        return results
     
-    def insert(self, h):
+    def insert(self, *hashes):
         # Because we map each query onto a range, we have to make sure that each
         # conceivable match for any query in that range is available. So for a 
         # query for 0110100101101101, we'd map it onto a range, and return the
@@ -127,16 +106,30 @@ class Master(object):
         # In particular, if we are configured to use 3 differing bits, then we 
         # need to insert it into each of the ranges indicated by flipping the 
         # 3 MSBs of the hash to insert by 0, 1, 2, 3, 4, 5, 6 and 7.
-        for i in range(1 << self.differing_bits):
-            q = h ^ (i << (64 - self.differing_bits))
-            logger.debug('Looking up %s (%i)' % (bin(q), q))
-            self.find(q).insert(q, h)
+        #
+        # This is a map of destinations to the queries
+        destinations = defaultdict(list)        
+        for h in hashes:
+            for i in range(1 << self.differing_bits):
+                q = h ^ (i << (64 - self.differing_bits))
+                logger.debug('Looking up %s (%i)' % (bin(q), q))
+                destinations[self.find(q)].append((q, h))
+        
+        for k, insertions in destinations.items():
+            k.insert(*insertions)
+            logger.info('Finished inserting %s' % k)
         return True
     
-    def remove(self, h):
+    def remove(self, *hashes):
         # See the note in `insert`
-        for i in range(1 << self.differing_bits):
-            q = h ^ (i << (64 - self.differing_bits))
-            logger.debug('Looking up %s (%i)' % (bin(q), q))
-            self.find(q).remove(q, h)
+        destinations = defaultdict(list)        
+        for h in hashes:
+            for i in range(1 << self.differing_bits):
+                q = h ^ (i << (64 - self.differing_bits))
+                logger.debug('Looking up %s (%i)' % (bin(q), q))
+                destinations[self.find(q)].append((q, h))
+        
+        for k, removals in destinations.items():
+            k.remove(*removals)
+            logger.info('Finished inserting %s' % k)
         return True

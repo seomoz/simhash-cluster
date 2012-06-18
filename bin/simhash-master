@@ -1,0 +1,33 @@
+#! /usr/bin/env python
+
+import argparse
+
+parser = argparse.ArgumentParser(description='Run and a near-duplicates master')
+parser.add_argument('--config', dest='config', type=str,
+    help='Path to configuration')
+
+args = parser.parse_args()
+
+from smhcluster      import master
+from smhcluster.util import klass
+
+import yaml
+
+with open(args.config) as f:
+    args.config = yaml.load(f.read())
+
+# We'll create a cluster, start it, and then check our configuration for the 
+# various adapters we're going to use. 
+m = master.Master()
+
+import gevent
+# Now let's set up each of our adapters
+adapters = []
+for k, conf in args.config['adapters'].items():
+    # Now add an adapter to our database
+    adapter = klass(k)(m)
+    adapter.config(conf)
+    gevent.spawn(adapter.listen)
+
+# This just gets the cluster listening for slave servers
+m.listen()

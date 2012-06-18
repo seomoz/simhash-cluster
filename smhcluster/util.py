@@ -3,10 +3,10 @@
 # A few utility functions
 def klass(s):
     '''Given a string, return the class associated with it'''
-    mod = __import__(klass.rpartition('.')[0])
-    for m in klass.split('.')[1:-1]:
+    mod = __import__(s.rpartition('.')[0])
+    for m in s.split('.')[1:-1]:
         mod = getattr(mod, m)
-    return getattr(mod, klass.rpartition('.')[2])
+    return getattr(mod, s.rpartition('.')[2])
 
 import bisect
 

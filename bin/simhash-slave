@@ -1,0 +1,27 @@
+#! /usr/bin/env python
+
+import argparse
+
+parser = argparse.ArgumentParser(description='Run and a near-duplicates slave')
+parser.add_argument('master', type=str,
+    help='The master to connect to')
+parser.add_argument('--port', dest='port', type=int, default=4242,
+    help='Explicitly specify a port to run on')
+
+args = parser.parse_args()
+
+import gevent
+import zerorpc
+from socket import gethostname
+from smhcluster.slave import Slave
+
+hostname = gethostname() + ':' + str(args.port)
+slave = Slave(hostname)
+
+# Tell the thing it should register...
+gevent.spawn(slave.register, args.master)
+
+# And start serving...
+s = zerorpc.Server(slave)
+s.bind('tcp://0.0.0.0:%i' % args.port)
+s.run()
