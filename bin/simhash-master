@@ -29,5 +29,6 @@ for k, conf in args.config['adapters'].items():
     adapter.config(conf)
     gevent.spawn(adapter.listen)
 
+m.config(args.config)
 # This just gets the cluster listening for slave servers
 m.listen()

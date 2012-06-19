@@ -1,16 +1,18 @@
 #! /usr/bin/env python
 
 from . import logger
-from .util import RangeMap
+from .util import RangeMap, klass
 
 class Slave(object):
     def __init__(self, hostname):
         self.hostname = hostname
         self.rangemap = RangeMap()
+        self._config  = {}
     
     # Send configuration to this node
     def config(self, config):
-        pass
+        logger.info('Recieved configuration %s' % (repr(config)))
+        self._config  = config
     
     def load(self, start, end):
         '''Load and start serving an interval'''
@@ -25,7 +27,9 @@ class Slave(object):
     
     def save(self, start, end):
         '''Save the provided interval to permanent storage'''
-        pass
+        for name, conf in self._config.get('emitters', {}).items():
+            emitter = klass(name)(conf)
+            logger.info('Loaded emitter %s' % name)
     
     def find(self, h):
         '''Find the shard associated with the provided hash'''

@@ -25,6 +25,8 @@ class Master(object):
         
         # A mapping of hostnames to slave objects
         self.slaves = {}
+        # Our current configuration
+        self._config = {}
     
     def ranges(self):
         # Return a list of tuples (start, end) that we need
@@ -72,6 +74,9 @@ class Master(object):
         for start, end in assign:
             slave.load(start, end)
             self.rangemap.insert(start, end, slave)
+        
+        # Send it its updated configuration
+        slave.config(self._config)
     
     def deregister(self, hostname):
         # When deregistering a node, we should redistribute all the keys
@@ -112,7 +117,10 @@ class Master(object):
         return dict(((repr(s), len(shards)) for s, shards in slaves.items()))
     
     def config(self, config):
-        pass
+        self._config = config
+        # Propagate the configuration to all the slaves
+        for slave in self.slaves.values():
+            slave.config(config)
     
     def listen(self):
         # Listen for nodes trying to connect
