@@ -1,6 +1,8 @@
 # Provides a JSON interface to access the simhash cluster
 
 # We need bottle for the server, and requests for the client
+import gevent.monkey
+gevent.monkey; gevent.monkey.patch_all()
 import bottle
 import requests
 from bottle import run, request, abort, Bottle
