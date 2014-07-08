@@ -1,5 +1,9 @@
 Simhash Cluster
 ===============
+__This is obviously unfinished work and we also have no intention of finishing
+it. Instead, we've elected to use a real database backing a simhash corpus
+through [simhash-db-py](https://github.com/seomoz/simhash-db-py).__
+
 Simhash takes an input vector of integers, and produces a single integer output
 that's representative of that vector in the sense that _similar_ vectors yield
 _similar_ hashes -- their resultant hashes are expected to differ by only a few
