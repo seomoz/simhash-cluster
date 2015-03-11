@@ -1,5 +1,11 @@
 Simhash Cluster
 ===============
+![Status: Deprecated](https://img.shields.io/badge/status-deprecated-red.svg?style=flat)
+![Team: Big Data](https://img.shields.io/badge/team-big_data-green.svg?style=flat)
+![Scope: External](https://img.shields.io/badge/scope-external-green.svg?style=flat)
+![Open Source: MIT](https://img.shields.io/badge/open_source-MIT-green.svg?style=flat)
+![Critical: No](https://img.shields.io/badge/critical-no-red.svg?style=flat)
+
 __This is obviously unfinished work and we also have no intention of finishing
 it. Instead, we've elected to use a real database backing a simhash corpus
 through [simhash-db-py](https://github.com/seomoz/simhash-db-py).__
